@@ -842,20 +842,117 @@ window.addEventListener('load', () => {
             if (loading) loading.style.display = show ? 'flex' : 'none';
         }
 
-        // Pridanie tlačidla pre otvorenie inventára
+        // Pridanie tlačidla pre otvorenie inventára s možnosťou presunu
         function addInventoryButton() {
             const button = document.createElement('button');
             button.textContent = 'Rozšírený inventár';
+            button.id = 'tanoth-inventory-button';
+            
+            // Načítanie poslednej pozície z localStorage alebo predvolené hodnoty
+            const savedPosition = JSON.parse(localStorage.getItem('tanothInventoryButtonPosition') || '{"top": 20, "right": 20}');
+            
             button.style.cssText = `
-                position: fixed; top: 20px; right: 20px; z-index: 9999;
+                position: fixed; top: ${savedPosition.top}px; right: ${savedPosition.right}px; z-index: 9999;
                 background: linear-gradient(145deg, #f39c12, #e67e22); border: none;
-                color: white; padding: 12px 20px; border-radius: 8px; cursor: pointer;
+                color: white; padding: 12px 20px; border-radius: 8px; cursor: grab;
                 font-weight: bold; box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4);
-                transition: all 0.2s ease;
+                transition: all 0.2s ease; user-select: none;
             `;
-            button.addEventListener('mouseenter', () => button.style.transform = 'translateY(-2px)');
-            button.addEventListener('mouseleave', () => button.style.transform = 'translateY(0)');
-            button.addEventListener('click', createInventoryUI);
+
+            let isDragging = false;
+            let startX, startY, initialRight, initialTop;
+
+            // Hover efekty
+            button.addEventListener('mouseenter', () => {
+                if (!isDragging) button.style.transform = 'translateY(-2px)';
+            });
+            button.addEventListener('mouseleave', () => {
+                if (!isDragging) button.style.transform = 'translateY(0)';
+            });
+
+            // Drag functionality
+            button.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                button.style.cursor = 'grabbing';
+                button.style.transform = 'translateY(0)';
+                
+                // Získaj aktuálnu pozíciu
+                const rect = button.getBoundingClientRect();
+                initialTop = rect.top;
+                initialRight = window.innerWidth - rect.right;
+                
+                startX = e.clientX;
+                startY = e.clientY;
+
+                e.preventDefault(); // Zabráni výberu textu
+
+                // Pridaj event listenery pre pohyb a uvoľnenie
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+            });
+
+            function handleMouseMove(e) {
+                if (!isDragging) return;
+
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+
+                const newTop = Math.max(0, Math.min(window.innerHeight - button.offsetHeight, initialTop + deltaY));
+                const newRight = Math.max(0, Math.min(window.innerWidth - button.offsetWidth, initialRight - deltaX));
+
+                button.style.top = newTop + 'px';
+                button.style.right = newRight + 'px';
+            }
+
+            function handleMouseUp(e) {
+                if (!isDragging) return;
+                
+                isDragging = false;
+                button.style.cursor = 'grab';
+
+                // Uloženie pozície do localStorage
+                const rect = button.getBoundingClientRect();
+                const position = {
+                    top: rect.top,
+                    right: window.innerWidth - rect.right
+                };
+                localStorage.setItem('tanothInventoryButtonPosition', JSON.stringify(position));
+
+                // Odstránenie event listenerov
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+
+                // Ak sa tlačidlo nepresunulo veľmi (malý pohyb), otvor inventár
+                const deltaX = Math.abs(e.clientX - startX);
+                const deltaY = Math.abs(e.clientY - startY);
+                if (deltaX < 5 && deltaY < 5) {
+                    createInventoryUI();
+                }
+            }
+
+            // Pravý klik pre reset pozície
+            button.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                
+                // Reset na predvolenú pozíciu
+                const defaultPosition = { top: 20, right: 20 };
+                button.style.top = defaultPosition.top + 'px';
+                button.style.right = defaultPosition.right + 'px';
+                
+                // Uloženie resetnutej pozície
+                localStorage.setItem('tanothInventoryButtonPosition', JSON.stringify(defaultPosition));
+                
+                // Krátky vizuálny feedback
+                const originalShadow = button.style.boxShadow;
+                button.style.boxShadow = '0 4px 15px rgba(46, 204, 113, 0.6)';
+                setTimeout(() => {
+                    button.style.boxShadow = originalShadow;
+                }, 300);
+            });
+
+            // Tooltip pre informáciu o presune
+            button.title = 'Ľavý klik: Otvoriť inventár\nŤahanie: Presunúť tlačidlo\nPravý klik: Reset pozície';
+
             document.body.appendChild(button);
         }
 
